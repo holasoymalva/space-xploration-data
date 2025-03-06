@@ -10,82 +10,27 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install dependencies
-      run: pip install requests
-    
-    - name: Configure Git
-      run: |
-        git config --global user.name "holasoymalva"
-        git config --global user.email "alquimista3301@gmail.com"
-    
-    - name: Create and run update script
-      run: |
-        # Crear directorio data
-        mkdir -p data
+      - name: Checkout repository
+        uses: actions/checkout@v3
         
-        # Crear el script de Python
-        echo '
-import requests
-import json
-import os
-from datetime import datetime
-
-# Configuración
-JSON_FILE_PATH = "data/space_data.json"
-API_URL = "https://api.spacexdata.com/v4/launches/latest"
-
-# Obtener datos de la API
-try:
-    response = requests.get(API_URL)
-    response.raise_for_status()
-    space_data = response.json()
-except Exception as e:
-    print(f"Error al obtener datos: {e}")
-    space_data = None
-
-# Actualizar archivo JSON
-if os.path.exists(JSON_FILE_PATH):
-    try:
-        with open(JSON_FILE_PATH, "r") as file:
-            existing_data = json.load(file)
-    except:
-        existing_data = {"launches": [], "last_check": ""}
-else:
-    existing_data = {"launches": [], "last_check": ""}
-
-# Actualizar timestamp
-current_time = datetime.now().isoformat()
-existing_data["last_check"] = current_time
-
-# Añadir nuevos datos si existen
-if space_data:
-    existing_ids = [launch.get("id") for launch in existing_data["launches"]]
-    if space_data.get("id") not in existing_ids:
-        space_data["updated_at"] = current_time
-        existing_data["launches"].append(space_data)
-
-# Guardar archivo
-with open(JSON_FILE_PATH, "w") as file:
-    json.dump(existing_data, file, indent=2)
-
-print("Actualización completada")
-' > update_script.py
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
         
-        # Ejecutar el script
-        python update_script.py
-    
-    - name: Commit and push changes
-      run: |
-        git add data/
-        git commit -m "Actualización automática - $(date +'%Y-%m-%d %H:%M:%S')" --allow-empty
-        git push
+      - name: Install dependencies
+        run: pip install requests
+        
+      - name: Run update script
+        run: python scripts/update_data.py
+        
+      - name: Configure git
+        run: |
+          git config user.name "holasoymalva"
+          git config user.email "alquimista3301@gmail.com"
+          
+      - name: Commit and push
+        run: |
+          git add data/
+          git commit -m "Actualización automática - $(date +'%Y-%m-%d %H:%M:%S')" --allow-empty
+          git push
