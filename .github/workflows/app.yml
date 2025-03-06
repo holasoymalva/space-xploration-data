@@ -2,7 +2,7 @@ name: Update Space Data
 
 on:
   schedule:
-    # Ejecución cada hora (puedes ajustar según necesites)
+    # Ejecución cada hora
     - cron: '0 * * * *'
   # También permite la ejecución manual
   workflow_dispatch:
@@ -41,12 +41,11 @@ jobs:
         # Crea el directorio data si no existe
         mkdir -p data
         
-        # Aquí incluyes el código para actualizar directamente
-        python - << 'EOF'
+        # Ejecutar script de Python
+        python - << EOF
 import requests
 import json
 import os
-import git
 from datetime import datetime
 
 # Configuración
