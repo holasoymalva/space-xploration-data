@@ -2,7 +2,7 @@ name: Update Space Data
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '* * * * *'
   workflow_dispatch:
 
 permissions:
