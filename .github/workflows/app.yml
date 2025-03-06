@@ -1,0 +1,120 @@
+name: Update Space Data
+
+on:
+  schedule:
+    # Ejecución cada hora (puedes ajustar según necesites)
+    - cron: '0 * * * *'
+  # También permite la ejecución manual
+  workflow_dispatch:
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        # Necesario para hacer push más tarde
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests gitpython
+    
+    - name: Configure Git
+      run: |
+        git config --global user.name "holasoymalva"
+        git config --global user.email "alquimista3301@gmail.com"
+    
+    - name: Run data updater script
+      env:
+        # GitHub Actions proporciona automáticamente este token
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Crea el directorio data si no existe
+        mkdir -p data
+        
+        # Aquí incluyes el código para actualizar directamente
+        python - << 'EOF'
+import requests
+import json
+import os
+import git
+from datetime import datetime
+
+# Configuración
+JSON_FILE_PATH = "data/space_data.json"
+API_URL = "https://api.spacexdata.com/v4/launches/latest"
+
+def fetch_space_data():
+    """Obtener datos de la API espacial"""
+    try:
+        response = requests.get(API_URL)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error al obtener datos de la API: {e}")
+        return None
+
+def update_json_file(file_path, new_data):
+    """Actualizar el archivo JSON con los nuevos datos"""
+    # Crear directorios si no existen
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    
+    # Leer datos existentes si el archivo existe
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, 'r') as file:
+                existing_data = json.load(file)
+        except json.JSONDecodeError:
+            existing_data = {"launches": [], "last_check": ""}
+    else:
+        existing_data = {"launches": [], "last_check": ""}
+    
+    # Actualizar siempre el timestamp de última verificación
+    current_time = datetime.now().isoformat()
+    existing_data["last_check"] = current_time
+    
+    # Guardar archivo siempre para actualizar el timestamp
+    with open(file_path, 'w') as file:
+        json.dump(existing_data, file, indent=2)
+    
+    # Comprobar si hay datos nuevos para añadir
+    data_added = False
+    if new_data:
+        existing_ids = [launch.get("id") for launch in existing_data["launches"]]
+        if new_data.get("id") not in existing_ids:
+            # Añadir timestamp de actualización
+            new_data["updated_at"] = current_time
+            existing_data["launches"].append(new_data)
+            
+            # Re-guardar el archivo con los nuevos datos
+            with open(file_path, 'w') as file:
+                json.dump(existing_data, file, indent=2)
+            data_added = True
+    
+    # Siempre retorna True para forzar el commit
+    return True
+
+# Obtener datos espaciales
+space_data = fetch_space_data()
+
+if space_data:
+    # Actualizar archivo JSON
+    updated = update_json_file(JSON_FILE_PATH, space_data)
+    print(f"Datos actualizados: {updated}")
+EOF
+    
+    - name: Commit and push (always)
+      run: |
+        git add data/
+        # Forzar commit siempre, incluso cuando no hay cambios
+        git commit -m "Actualización automática de datos espaciales - $(date +'%Y-%m-%d %H:%M:%S')" --allow-empty
+        git push
