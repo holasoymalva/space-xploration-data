@@ -1,0 +1,88 @@
+name: Daily Contribution Generator
+
+on:
+  schedule:
+    # Ejecutar múltiples veces al día para aumentar las contribuciones
+    - cron: '0 */4 * * *'  # Cada 4 horas (6 veces al día)
+  workflow_dispatch:  # Para ejecutar manualmente cuando se necesite
+
+permissions:
+  contents: write
+
+jobs:
+  make-contributions:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Generate random content updates
+        run: |
+          mkdir -p contributions
+          
+          # Generar un archivo con fecha y hora actual
+          DATE_TIME=$(date +'%Y-%m-%d_%H-%M-%S')
+          RANDOM_NUM=$((RANDOM % 1000))
+          
+          # Crear un archivo de contribución con timestamp
+          echo "{
+            \"timestamp\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",
+            \"random_value\": $RANDOM_NUM,
+            \"message\": \"Actualización automática de datos\"
+          }" > "contributions/update_$DATE_TIME.json"
+          
+          # Actualizar el archivo de resumen (o crearlo si no existe)
+          if [ -f "contributions/summary.json" ]; then
+            python -c "
+import json, os
+try:
+    with open('contributions/summary.json', 'r') as f:
+        data = json.load(f)
+except:
+    data = {'updates': [], 'total_updates': 0}
+
+# Añadir nueva actualización
+new_update = {
+    'timestamp': '$(date -u +'%Y-%m-%dT%H:%M:%SZ')',
+    'file': 'update_$DATE_TIME.json'
+}
+data['updates'].append(new_update)
+data['total_updates'] = len(data['updates'])
+data['last_update'] = '$(date -u +'%Y-%m-%dT%H:%M:%SZ')'
+
+# Guardar archivo actualizado
+with open('contributions/summary.json', 'w') as f:
+    json.dump(data, f, indent=2)
+"
+          else
+            echo "{
+              \"updates\": [{
+                \"timestamp\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",
+                \"file\": \"update_$DATE_TIME.json\"
+              }],
+              \"total_updates\": 1,
+              \"last_update\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\"
+            }" > "contributions/summary.json"
+          fi
+      
+      - name: Configure git
+        run: |
+          git config user.name "holasoymalva"
+          git config user.email "alquimista3301@gmail.com"
+          
+      - name: Commit and push changes
+        run: |
+          git add contributions/
+          
+          # Crear mensaje de commit con emoji aleatorio para variedad visual
+          EMOJIS=("🚀" "✨" "📊" "📈" "🔄" "⏱️" "💾" "🧪" "📡" "🌌" "🔭")
+          RANDOM_EMOJI=${EMOJIS[$RANDOM % ${#EMOJIS[@]}]}
+          
+          git commit -m "$RANDOM_EMOJI Actualización de contribución $(date +'%Y-%m-%d %H:%M:%S')"
+          git push
