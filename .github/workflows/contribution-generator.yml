@@ -2,9 +2,8 @@ name: Daily Contribution Generator
 
 on:
   schedule:
-    # Ejecutar múltiples veces al día para aumentar las contribuciones
     - cron: '0 */4 * * *'  # Cada 4 horas (6 veces al día)
-  workflow_dispatch:  # Para ejecutar manualmente cuando se necesite
+  workflow_dispatch:  # Para ejecutar manualmente
 
 permissions:
   contents: write
@@ -22,54 +21,76 @@ jobs:
         with:
           python-version: '3.9'
       
-      - name: Generate random content updates
+      - name: Create contribution scripts
         run: |
-          mkdir -p contributions
-          
-          # Generar un archivo con fecha y hora actual
-          DATE_TIME=$(date +'%Y-%m-%d_%H-%M-%S')
-          RANDOM_NUM=$((RANDOM % 1000))
-          
-          # Crear un archivo de contribución con timestamp
-          echo "{
-            \"timestamp\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",
-            \"random_value\": $RANDOM_NUM,
-            \"message\": \"Actualización automática de datos\"
-          }" > "contributions/update_$DATE_TIME.json"
-          
-          # Actualizar el archivo de resumen (o crearlo si no existe)
-          if [ -f "contributions/summary.json" ]; then
-            python -c "
-import json, os
-try:
-    with open('contributions/summary.json', 'r') as f:
-        data = json.load(f)
-except:
-    data = {'updates': [], 'total_updates': 0}
+          # Crear script para generar contribuciones
+          cat > generate_contribution.py << 'EOF'
+import json
+import os
+import random
+import datetime
+
+# Crear directorio si no existe
+os.makedirs('contributions', exist_ok=True)
+
+# Generar timestamp único
+now = datetime.datetime.utcnow()
+timestamp = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+date_time = now.strftime('%Y-%m-%d_%H-%M-%S')
+random_num = random.randint(1, 1000)
+
+# Crear archivo de contribución con timestamp
+contribution_data = {
+    "timestamp": timestamp,
+    "random_value": random_num,
+    "message": "Actualización automática de datos"
+}
+
+with open(f"contributions/update_{date_time}.json", 'w') as f:
+    json.dump(contribution_data, f, indent=2)
+
+# Actualizar archivo summary o crearlo si no existe
+summary_path = 'contributions/summary.json'
+if os.path.exists(summary_path):
+    try:
+        with open(summary_path, 'r') as f:
+            summary = json.load(f)
+    except:
+        summary = {'updates': [], 'total_updates': 0}
+else:
+    summary = {'updates': [], 'total_updates': 0}
 
 # Añadir nueva actualización
 new_update = {
-    'timestamp': '$(date -u +'%Y-%m-%dT%H:%M:%SZ')',
-    'file': 'update_$DATE_TIME.json'
+    'timestamp': timestamp,
+    'file': f'update_{date_time}.json'
 }
-data['updates'].append(new_update)
-data['total_updates'] = len(data['updates'])
-data['last_update'] = '$(date -u +'%Y-%m-%dT%H:%M:%SZ')'
+summary['updates'].append(new_update)
+summary['total_updates'] = len(summary['updates'])
+summary['last_update'] = timestamp
 
-# Guardar archivo actualizado
-with open('contributions/summary.json', 'w') as f:
-    json.dump(data, f, indent=2)
-"
-          else
-            echo "{
-              \"updates\": [{
-                \"timestamp\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",
-                \"file\": \"update_$DATE_TIME.json\"
-              }],
-              \"total_updates\": 1,
-              \"last_update\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\"
-            }" > "contributions/summary.json"
-          fi
+# Guardar archivo summary
+with open(summary_path, 'w') as f:
+    json.dump(summary, f, indent=2)
+
+print(f"Contribución generada: update_{date_time}.json")
+EOF
+
+          # Crear script para generar mensaje de commit
+          cat > generate_commit_message.py << 'EOF'
+import random
+
+emojis = ["🚀", "✨", "📊", "📈", "🔄", "⏱️", "💾", "🧪", "📡", "🌌", "🔭"]
+random_emoji = random.choice(emojis)
+
+import datetime
+timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+print(f"{random_emoji} Actualización de contribución {timestamp}")
+EOF
+      
+      - name: Generate contribution
+        run: python generate_contribution.py
       
       - name: Configure git
         run: |
@@ -79,10 +100,6 @@ with open('contributions/summary.json', 'w') as f:
       - name: Commit and push changes
         run: |
           git add contributions/
-          
-          # Crear mensaje de commit con emoji aleatorio para variedad visual
-          EMOJIS=("🚀" "✨" "📊" "📈" "🔄" "⏱️" "💾" "🧪" "📡" "🌌" "🔭")
-          RANDOM_EMOJI=${EMOJIS[$RANDOM % ${#EMOJIS[@]}]}
-          
-          git commit -m "$RANDOM_EMOJI Actualización de contribución $(date +'%Y-%m-%d %H:%M:%S')"
+          COMMIT_MSG=$(python generate_commit_message.py)
+          git commit -m "$COMMIT_MSG"
           git push
