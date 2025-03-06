@@ -21,18 +21,20 @@ jobs:
         python-version: '3.9'
     
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests
+      run: pip install requests
     
     - name: Configure Git
       run: |
         git config --global user.name "holasoymalva"
         git config --global user.email "alquimista3301@gmail.com"
     
-    - name: Create script file
+    - name: Create and run update script
       run: |
-        cat > update_data.py << 'EOL'
+        # Crear directorio data
+        mkdir -p data
+        
+        # Crear el script de Python
+        echo '
 import requests
 import json
 import os
@@ -42,54 +44,48 @@ from datetime import datetime
 JSON_FILE_PATH = "data/space_data.json"
 API_URL = "https://api.spacexdata.com/v4/launches/latest"
 
-def fetch_space_data():
+# Obtener datos de la API
+try:
+    response = requests.get(API_URL)
+    response.raise_for_status()
+    space_data = response.json()
+except Exception as e:
+    print(f"Error al obtener datos: {e}")
+    space_data = None
+
+# Actualizar archivo JSON
+if os.path.exists(JSON_FILE_PATH):
     try:
-        response = requests.get(API_URL)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error al obtener datos de la API: {e}")
-        return None
-
-def update_json_file(file_path, new_data):
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, 'r') as file:
-                existing_data = json.load(file)
-        except json.JSONDecodeError:
-            existing_data = {"launches": [], "last_check": ""}
-    else:
+        with open(JSON_FILE_PATH, "r") as file:
+            existing_data = json.load(file)
+    except:
         existing_data = {"launches": [], "last_check": ""}
-    
-    current_time = datetime.now().isoformat()
-    existing_data["last_check"] = current_time
-    
-    if new_data:
-        existing_ids = [launch.get("id") for launch in existing_data["launches"]]
-        if new_data.get("id") not in existing_ids:
-            new_data["updated_at"] = current_time
-            existing_data["launches"].append(new_data)
-    
-    with open(file_path, 'w') as file:
-        json.dump(existing_data, file, indent=2)
-    
-    return True
+else:
+    existing_data = {"launches": [], "last_check": ""}
 
-# Ejecutar actualización
-space_data = fetch_space_data()
-updated = update_json_file(JSON_FILE_PATH, space_data)
-print(f"Datos actualizados: {updated}")
-EOL
+# Actualizar timestamp
+current_time = datetime.now().isoformat()
+existing_data["last_check"] = current_time
+
+# Añadir nuevos datos si existen
+if space_data:
+    existing_ids = [launch.get("id") for launch in existing_data["launches"]]
+    if space_data.get("id") not in existing_ids:
+        space_data["updated_at"] = current_time
+        existing_data["launches"].append(space_data)
+
+# Guardar archivo
+with open(JSON_FILE_PATH, "w") as file:
+    json.dump(existing_data, file, indent=2)
+
+print("Actualización completada")
+' > update_script.py
+        
+        # Ejecutar el script
+        python update_script.py
     
-    - name: Run updater script
-      run: |
-        mkdir -p data
-        python update_data.py
-    
-    - name: Commit and push
+    - name: Commit and push changes
       run: |
         git add data/
-        git commit -m "Actualización automática de datos espaciales - $(date +'%Y-%m-%d %H:%M:%S')" --allow-empty
+        git commit -m "Actualización automática - $(date +'%Y-%m-%d %H:%M:%S')" --allow-empty
         git push
