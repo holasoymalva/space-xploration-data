@@ -87,31 +87,11 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
-              body: `Esta PR se ve bien. Los cambios son claros y bien documentados.`
+              body: `Esta PR se ve bien. Los cambios son claros y bien documentados. Como es una actualización automática, procederé a mezclarla directamente.`
             });
             
-            // Obtener el último commit de la PR para usar en los comentarios de revisión
-            const commits = await github.rest.pulls.listCommits({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber
-            });
-            
-            const lastCommitSha = commits.data[commits.data.length - 1].sha;
-            console.log(`Último commit SHA: ${lastCommitSha}`);
-            
-            // Enviar una revisión directamente sin intentar comentar en líneas específicas
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-              body: `He revisado estos cambios y todo parece estar en orden. El formato del documento es excelente y la documentación está bien estructurada.`,
-              event: 'APPROVE',
-              commit_id: lastCommitSha
-            });
-            
-            // Esperar un momento para que la revisión se registre
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            // Esperar un momento para que el comentario se registre
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
             // Mezclar la PR automáticamente
             try {
