@@ -1,11 +1,8 @@
 name: Automated PR and Review Generator
 
 on:
-  # Ejecutar según un horario
   schedule:
     - cron: '0 */6 * * *'  # Cada 6 horas
-  
-  # Permitir ejecución manual
   workflow_dispatch:
 
 permissions:
@@ -25,123 +22,121 @@ jobs:
           git config --global user.name "holasoymalva"
           git config --global user.email "alquimista3301@gmail.com"
           
-      - name: Create unique branch
+      - name: Create branch and make changes
         run: |
           # Crear nombre de rama único con timestamp
           TIMESTAMP=$(date +'%Y%m%d%H%M%S')
           BRANCH_NAME="auto-update-$TIMESTAMP"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           
           # Crear rama
           git checkout -b $BRANCH_NAME
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           
-      - name: Make changes
-        run: |
-          # Crear directorio para cambios automatizados si no existe
+          # Crear directorio para cambios
           mkdir -p auto-updates
           
-          # Generar contenido aleatorio
-          TIMESTAMP=$(date +'%Y-%m-%d %H:%M:%S')
-          RANDOM_ID=$((RANDOM % 10000))
-          FILE_PATH="auto-updates/update-$RANDOM_ID.md"
+          # Generar contenido
+          FILE_PATH="auto-updates/update-$TIMESTAMP.md"
+          echo "# Actualización Automática" > $FILE_PATH
+          echo "" >> $FILE_PATH
+          echo "**Timestamp:** $(date +'%Y-%m-%d %H:%M:%S')" >> $FILE_PATH
+          echo "**ID:** $RANDOM" >> $FILE_PATH
+          echo "" >> $FILE_PATH
+          echo "## Cambios realizados" >> $FILE_PATH
+          echo "" >> $FILE_PATH
+          echo "Esta actualización incluye:" >> $FILE_PATH
+          echo "- Mejora de documentación" >> $FILE_PATH
+          echo "- Optimización de código" >> $FILE_PATH
+          echo "- Actualización de archivos de configuración" >> $FILE_PATH
+          echo "" >> $FILE_PATH
+          echo "---" >> $FILE_PATH
+          echo "*Generado automáticamente*" >> $FILE_PATH
           
-          # Crear archivo con contenido
-          cat > $FILE_PATH << EOF
-# Actualización Automática
-
-**Timestamp:** $TIMESTAMP
-**ID:** $RANDOM_ID
-
-## Cambios realizados
-
-Esta actualización incluye:
-- Mejora de documentación
-- Optimización de código
-- Actualización de archivos de configuración
-
----
-*Generado automáticamente*
-EOF
-          
-          # Hacer commit de los cambios
-          git add $FILE_PATH
-          git commit -m "Actualización automática $TIMESTAMP"
-          
-          # Guardar ruta del archivo para referencia
+          # Guardar ruta del archivo
           echo "FILE_PATH=$FILE_PATH" >> $GITHUB_ENV
           
-      - name: Push branch
-        run: |
-          # Enviar rama al repositorio
+          # Hacer commit y push
+          git add $FILE_PATH
+          git commit -m "Actualización automática $(date +'%Y-%m-%d %H:%M:%S')"
           git push --set-upstream origin $BRANCH_NAME
-          
-      - name: Create Pull Request
-        id: create_pr
-        uses: actions/github-script@v6
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const result = await github.rest.pulls.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Actualización automatizada - ${new Date().toISOString().split('T')[0]}`,
-              body: "## Descripción\n\nEsta PR contiene actualizaciones generadas automáticamente para mejorar la documentación y estructura del repositorio.\n\n## Cambios\n- Añadido archivo de documentación\n- Actualización de contenido existente\n- Mejoras generales\n\n---\n*Generado por GitHub Actions*",
+          node-version: '16'
+      
+      - name: Create PR script
+        run: |
+          echo "const { Octokit } = require('@octokit/rest');
+          
+          async function createPullRequest() {
+            const octokit = new Octokit({
+              auth: process.env.GITHUB_TOKEN
+            });
+            
+            const owner = process.env.GITHUB_REPOSITORY.split('/')[0];
+            const repo = process.env.GITHUB_REPOSITORY.split('/')[1];
+            
+            // Crear PR
+            const { data: pr } = await octokit.pulls.create({
+              owner,
+              repo,
+              title: 'Actualización automatizada - ' + new Date().toISOString().split('T')[0],
+              body: '## Descripción\\n\\nEsta PR contiene actualizaciones generadas automáticamente para mejorar la documentación y estructura del repositorio.\\n\\n## Cambios\\n- Añadido archivo de documentación\\n- Actualización de contenido existente\\n- Mejoras generales\\n\\n---\\n*Generado por GitHub Actions*',
               head: process.env.BRANCH_NAME,
               base: 'main'
             });
             
-            // Guardar número de PR para uso posterior
-            console.log(`Pull request creado: #${result.data.number}`);
-            return result.data.number;
+            console.log('PR creada:', pr.number);
             
-      - name: Add comments and review
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = ${{ steps.create_pr.outputs.result }};
-            
-            // Añadir comentario general a la PR
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              body: "Esta PR se ve bien. Los cambios son claros y bien documentados."
+            // Añadir comentario general
+            await octokit.issues.createComment({
+              owner,
+              repo,
+              issue_number: pr.number,
+              body: 'Esta PR se ve bien. Los cambios son claros y bien documentados.'
             });
             
-            // Añadir comentario en el archivo específico
-            await github.rest.pulls.createReviewComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-              body: "El formato de este documento es excelente. Buen trabajo en la estructura.",
+            // Añadir comentario en el archivo
+            await octokit.pulls.createReviewComment({
+              owner,
+              repo,
+              pull_number: pr.number,
+              body: 'El formato de este documento es excelente. Buen trabajo en la estructura.',
               path: process.env.FILE_PATH,
               line: 5,
               side: 'RIGHT'
             });
             
-            // Enviar una revisión aprobatoria
-            await github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-              body: "He revisado estos cambios y todo parece estar en orden. Buen trabajo en la documentación y estructura.",
+            // Enviar revisión aprobatoria
+            await octokit.pulls.createReview({
+              owner,
+              repo,
+              pull_number: pr.number,
+              body: 'He revisado estos cambios y todo parece estar en orden. Buen trabajo en la documentación y estructura.',
               event: 'APPROVE'
             });
             
-      - name: Merge Pull Request
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = ${{ steps.create_pr.outputs.result }};
-            
-            // Mezclar la PR automáticamente
-            await github.rest.pulls.merge({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
+            // Mezclar PR
+            await octokit.pulls.merge({
+              owner,
+              repo,
+              pull_number: pr.number,
               merge_method: 'merge'
             });
             
-            console.log(`Pull request #${prNumber} mezclado correctamente`);
+            console.log('PR mezclada correctamente');
+          }
+          
+          createPullRequest().catch(error => {
+            console.error('Error:', error);
+            process.exit(1);
+          });" > create-pr.js
+      
+      - name: Install dependencies
+        run: npm install @octokit/rest
+      
+      - name: Execute PR creation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node create-pr.js
