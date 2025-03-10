@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT }}
         
       - name: Setup Git Identity
         run: |
@@ -63,7 +65,8 @@ jobs:
       - name: Create and merge PR
         uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Usar el PAT para las operaciones de la API
+          github-token: ${{ secrets.PAT }}
           script: |
             // Crear PR
             const pr = await github.rest.pulls.create({
