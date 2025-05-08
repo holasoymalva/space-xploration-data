@@ -2,7 +2,7 @@ name: Automated PR and Review Generator
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 permissions:
