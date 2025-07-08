@@ -1,0 +1,33 @@
+name: Mock Issue Generator
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * *'  # Runs daily at 08:00 UTC (adjust as needed)
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  create-mock-issues:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run mock issue generator
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+          REPO_OWNER: your-username-or-org
+          REPO_NAME: your-repo-name
+        run: python scripts/generate_mock_issues.py
